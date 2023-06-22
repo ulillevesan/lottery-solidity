@@ -80,13 +80,13 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 	}
 
 	function setDuration(uint256 _duration) external onlyOwner {
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		duration = _duration;
 		emit NewDuration(_duration);
 	}
 
 	function setPrice(uint256 _cost) external onlyOwner {
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		price = _cost;
 		emit NewPrice(_cost);
 	}
@@ -97,35 +97,35 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 	}
 
 	function setMaxTicketsForWallet(uint256 _amount) external onlyOwner {
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		maxTicketsForWallet = _amount;
 		emit NewMaxTicketsForWallet(_amount);
 	}
 
 	function setOperator(address _operator) external onlyOwner {
 		require(_operator != address(0),"zero address");
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		operator = _operator;
 		emit NewOperator(_operator);
 	}
 
 	function setCoin(address _coin) external onlyOwner {
 		require(_coin != address(0),"zero address");
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		usdt = _coin;
 		emit NewCoin(_coin);
 	}
 
 	function setTreasury(address _treasury) external onlyOwner {
 		require(_treasury != address(0),"zero address");
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		treasury = _treasury;
 		emit NewTreasury(_treasury);
 	}
 
 	function setCommission(uint256 _percentage) external onlyOwner {
 		require(_percentage < 100, "Number greater than 100");
-		require(tickets.length == 0 || endDate <= block.timestamp, "lottery is running");
+		require(tickets.length == 0, "lottery is running");
 		percentageCommission = _percentage;
 		emit NewCommission(_percentage);
 	}
