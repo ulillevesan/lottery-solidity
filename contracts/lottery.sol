@@ -5,10 +5,8 @@ import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
-	using SafeMath for uint256;
 	VRFCoordinatorV2Interface private COORDINATOR;
 
 	uint16 private constant requestConfirmations = 3;
@@ -26,11 +24,17 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 	uint256 public price;
 	uint256 public percentageCommission;
 	address public operator;
-	address private usdt;
-	address private treasury;
+	address public usdt;
+	address public treasury;
 
 	bytes32 private constant keyHash =
 	0xd4bb89654db74673a187bd804519e65e3f71a52bc55f11da7601a13dcf505314;
+
+	mapping(uint256 => RequestStatus) public s_requests;
+	mapping(address => mapping(uint256 => uint256)) public walletWithIdToAmount;
+	mapping(address => uint256) public walletToAmountReturn;
+	mapping(uint256 => bool) public lotteryIdToEnded;
+	address[] private tickets;
 
 	struct RequestStatus {
 		bool fulfilled;
@@ -38,10 +42,15 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		uint256[] randomWords;
 	}
 
-	mapping(uint256 => RequestStatus) public s_requests;
-	mapping(address => mapping(uint256 => uint256)) public walletWithIdToAmount;
-	mapping(uint256 => bool) public lotteryIdToEnded;
-	address[] private tickets;
+	event NewPrice(uint256 price);
+	event NewDuration(uint256 duration);
+	event NewMaxTickets(uint256 tickets);
+	event NewMaxTicketsForWallet(uint256 tickets);
+	event NewCommission(uint256 commission);
+	event NewCoin(address coin);
+	event NewOperator(address operator);
+	event NewTreasury(address treasury);
+	event EndLottery();
 
 	constructor(
 		uint64 _subscriptionId,
@@ -53,6 +62,9 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		address _operator,
 		address _vrfConsumer
 	) VRFConsumerBaseV2(_vrfConsumer) ConfirmedOwner(msg.sender) {
+		require(_usdt != address(0), "zero address");
+		require(_operator != address(0), "zero address");
+		require(_vrfConsumer != address(0), "zero address");
 		COORDINATOR = VRFCoordinatorV2Interface(_vrfConsumer);
 		s_subscriptionId = _subscriptionId;
 		currentId = 1;
@@ -67,8 +79,66 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		percentageCommission = 10;
 	}
 
+	function setDuration(uint256 _duration) external onlyOwner {
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		duration = _duration;
+		emit NewDuration(_duration);
+	}
+
+	function setPrice(uint256 _cost) external onlyOwner {
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		price = _cost;
+		emit NewPrice(_cost);
+	}
+
+	function setMaxTickets(uint256 _amount) external onlyOwner {
+		maxTickets = _amount;
+		emit NewMaxTickets(_amount);
+	}
+
+	function setMaxTicketsForWallet(uint256 _amount) external onlyOwner {
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		maxTicketsForWallet = _amount;
+		emit NewMaxTicketsForWallet(_amount);
+	}
+
+	function setOperator(address _operator) external onlyOwner {
+		require(_operator != address(0), "zero address");
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		operator = _operator;
+		emit NewOperator(_operator);
+	}
+
+	function setCoin(address _coin) external onlyOwner {
+		require(_coin != address(0), "zero address");
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		usdt = _coin;
+		emit NewCoin(_coin);
+	}
+
+	function setTreasury(address _treasury) external onlyOwner {
+		require(_treasury != address(0), "zero address");
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		treasury = _treasury;
+		emit NewTreasury(_treasury);
+	}
+
+	function setCommission(uint256 _percentage) external onlyOwner {
+		require(_percentage < 100, "Number greater than 100");
+		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		percentageCommission = _percentage;
+		emit NewCommission(_percentage);
+	}
+
+	function payoutTickets() external {
+		require(walletToAmountReturn[msg.sender] > 0, "amount must be greater than 0");
+		require(IERC20(usdt).balanceOf(address(this)) >= walletToAmountReturn[msg.sender], "not enough balance");
+		_safeTransferOut(usdt, msg.sender, walletToAmountReturn[msg.sender]);
+	}
+
 	function buyTickets(uint256 _amount) external {
 		require(currentTickets + _amount <= maxTickets, "max tickets");
+		require(IERC20(usdt).balanceOf(msg.sender) >= _amount * price, "not enough balance");
 		require(endDate >= block.timestamp, "end lottery wait");
 		require(
 			walletWithIdToAmount[msg.sender][currentId] + _amount <=
@@ -92,8 +162,9 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		require(msg.sender == operator || msg.sender == owner(), "not owner");
 		if (currentTickets != maxTickets && endDate <= block.timestamp) {
 			uint256 commission = (price / 100) * percentageCommission;
+			require(IERC20(usdt).balanceOf(address(this)) >= commission, "not enough balance");
 			for (uint256 i = 0; i < tickets.length; i++) {
-				_safeTransferOut(usdt, tickets[i], price + commission);
+				walletToAmountReturn[tickets[i]] += price + commission;
 			}
 			_restartLottery();
 		} else {
@@ -106,9 +177,9 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 			);
 
 			s_requests[requestId] = RequestStatus({
-			randomWords: new uint256[](0),
-			exists: true,
-			fulfilled: false
+			randomWords : new uint256[](0),
+			exists : true,
+			fulfilled : false
 			});
 		}
 	}
@@ -121,15 +192,15 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		s_requests[_requestId].fulfilled = true;
 		s_requests[_requestId].randomWords = _randomWords;
 		uint256 value = tickets.length * price;
-		uint256 commission = (value / 100) * percentageCommission;
-		address firstWinner = tickets[(_randomWords[0] % tickets.length) + 0];
-		address secondWinner = tickets[(_randomWords[1] % tickets.length) + 0];
-		address thirdWinner = tickets[(_randomWords[2] % tickets.length) + 0];
+		require(IERC20(usdt).balanceOf(address(this)) >= value, "not enough balance");
+		address firstWinner = tickets[(_randomWords[0] % tickets.length)];
+		address secondWinner = tickets[(_randomWords[1] % tickets.length)];
+		address thirdWinner = tickets[(_randomWords[2] % tickets.length)];
 		_safeTransferOut(usdt, firstWinner, (value / 100) * 80);
 		_safeTransferOut(usdt, secondWinner, (value / 100) * 10);
 		_safeTransferOut(usdt, thirdWinner, (value / 100) * 10);
 
-		_safeTransferOut(usdt, treasury, commission);
+		_safeTransferOut(usdt, treasury, IERC20(usdt).balanceOf(address(this)));
 		_restartLottery();
 	}
 
@@ -142,7 +213,7 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		uint256 balBefore = erc20.balanceOf(address(this));
 		erc20.transferFrom(_from, address(this), _amount);
 		require(
-			erc20.balanceOf(address(this)).sub(balBefore) == _amount,
+			erc20.balanceOf(address(this)) - balBefore == _amount,
 			"!transfer from"
 		);
 	}
@@ -163,37 +234,6 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		lotteryIdToEnded[currentId] = true;
 		currentTickets = 0;
 		currentId++;
-	}
-
-	function setDuration(uint256 _duration) external onlyOwner {
-		duration = _duration;
-	}
-
-	function setPrice(uint256 _cost) external onlyOwner {
-		price = _cost;
-	}
-
-	function setMaxTickets(uint256 _amount) external onlyOwner {
-		maxTickets = _amount;
-	}
-
-	function setMaxTicketsForWallet(uint256 _amount) external onlyOwner {
-		maxTicketsForWallet = _amount;
-	}
-
-	function setOperator(address _operator) external onlyOwner {
-		operator = _operator;
-	}
-
-	function setCoin(address _coin) external onlyOwner {
-		usdt = _coin;
-	}
-
-	function setTreasury(address _treasury) external onlyOwner {
-		treasury = _treasury;
-	}
-
-	function setCommission(uint256 _percentage) external onlyOwner {
-		percentageCommission = _percentage;
+		emit EndLottery();
 	}
 }
