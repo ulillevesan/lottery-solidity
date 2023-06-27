@@ -1,7 +1,5 @@
-This is a classic lottery in which there is one feature in the form of the fact that there are always 3 winners and it may be that the same award will receive even 3 awards, for example.
-This lottery has 2 options for ending. This is when all tickets are collected or when the time is up
-1. If the time is up and the tickets are not collected, we give the opportunity to return the money for these tickets and launch a new one
-2. If the tickets are collected, we send a request to the chainlink to get random numbers, when we receive them, we select from 3 addresses from the tickets and pay them their rewards
+This is a classic lottery, in which there is one peculiarity in the form that there are always 3 winners and it may be that the same prize will receive even 3 awards, for example.
+This lottery has one ending option. If the time is up or all the tickets are collected, then we send a request to the chainlink to receive random numbers, when they are received, we select from 3 addresses from the tickets and pay them their rewards
 
 Used:
 chainlink - get random numbers to choose winners
@@ -9,19 +7,13 @@ ierc20 - to get the interface and the ability to call money transfer and other f
 
 There are 3 types of users:
 operator - the address that has the rights to end the lottery
-ovner - owner of the contract
+owner - owner of the contract
 user - can buy tickets and receive money for unplayed tickets
 
 The lottery contract has such functions.
-setDuration external - with this function, the admin can change the interval between each lottery
-setPrice external - with this function, the admin can change the price for one ticket
-setMaxTickets external - using this function, the admin can change the maximum number of tickets for which the lottery will be executed
-setMaxTicketsForWallet external - using this function, the admin can change the maximum number of tickets per user address
 setOperator external - with this function, the admin can change the operator
 setCoin external - using this function, the admin can change the address of the coin for which payment is made
 setTreasury external - using this function, the admin can change the address where the commissions go
-setCommission external - with this function, the admin can change the percentage of commissions
-payoutTickets external - with this function, the user can receive a refund for tickets that did not play
 buyTickets external - allows you to buy tickets in the specified amount with a commission payment
 endLottery external - the end of the lottery that is called on the backend using a two-way statement
 fulfillRandomWords internal - a function that chainlink calls and sends a random number to choose winners
