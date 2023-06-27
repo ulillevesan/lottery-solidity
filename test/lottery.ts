@@ -35,60 +35,6 @@ describe("Lottery", function() {
     await lotteryDeployed.deployed();
   });
 
-  async function getTime(blockNumber: number): Promise<number> {
-    return (await ethers.provider.getBlock(blockNumber)).timestamp;
-  }
-
-  it("change duration", async function() {
-    const duration = 6400;
-    const changeDuration = await lottery.setDuration(duration);
-    await expect(changeDuration).to.emit(lottery, "NewDuration").withArgs(duration);
-    await changeDuration.wait();
-    const newDuration = await lottery.duration();
-    expect(newDuration).to.be.eq(duration);
-  });
-
-  it("change price", async function() {
-    const price = "10000000000000000000";
-    const changePrice = await lottery.setPrice(price);
-    await expect(changePrice).to.emit(lottery, "NewPrice").withArgs(price);
-    await changePrice.wait();
-    const newPrice = await lottery.price();
-    expect(newPrice).to.be.eq(price);
-  });
-
-  it("change commission", async function() {
-    const commission = "50";
-    const changeCommission = await lottery.setCommission(commission);
-    await expect(changeCommission).to.emit(lottery, "NewCommission").withArgs(commission);
-    await changeCommission.wait();
-    const newCommission = await lottery.percentageCommission();
-    expect(newCommission).to.be.eq(commission);
-  });
-
-  it("change commission 100%", async function() {
-    const changeCommission = lottery.setCommission(100);
-    await expect(changeCommission).to.be.revertedWith("Number greater than 100");
-  });
-
-  it("change max tickets for wallet", async function() {
-    const tickets = "5";
-    const changeMaxTicketsForWalllet = await lottery.setMaxTicketsForWallet(tickets);
-    await expect(changeMaxTicketsForWalllet).to.emit(lottery, "NewMaxTicketsForWallet").withArgs(tickets);
-    await changeMaxTicketsForWalllet.wait();
-    const newMaxTickets = await lottery.maxTicketsForWallet();
-    expect(newMaxTickets).to.be.eq(tickets);
-  });
-
-  it("change max tickets", async function() {
-    const tickets = "50";
-    const changeMaxTickets = await lottery.setMaxTickets(tickets);
-    await expect(changeMaxTickets).to.emit(lottery, "NewMaxTickets").withArgs(tickets);
-    await changeMaxTickets.wait();
-    const newMaxTickets = await lottery.maxTickets();
-    expect(newMaxTickets).to.be.eq(tickets);
-  });
-
   it("change operator", async function() {
     const changeOperator = await lottery.setOperator(buyer.address);
     await expect(changeOperator).to.emit(lottery, "NewOperator").withArgs(buyer.address);
@@ -145,12 +91,14 @@ describe("Lottery", function() {
       const buy = lottery.connect(buyer).buyTickets(1);
       expect(buy).to.be.revertedWith("not enough balance");
     });
+
     it("purchase of tickets over 50%", async function() {
       await usdt.mint(owner.address, ethers.utils.parseEther("5"));
       await usdt.connect(owner).approve(lottery.address, ethers.utils.parseEther("5"));
       const buy = lottery.connect(owner).buyTickets(11);
       await expect(buy).to.be.revertedWith("only 50% buy tickets");
     });
+
     it("purchase of tickets when it's lottery already expired", async function() {
       await usdt.mint(owner.address, ethers.utils.parseEther("5"));
       await usdt.connect(owner).approve(lottery.address, ethers.utils.parseEther("5"));
@@ -184,21 +132,6 @@ describe("Lottery", function() {
       await usdt.connect(buyer_second).approve(lottery.address, ethers.utils.parseEther("5"));
     });
 
-    it("end Lottery with not enough tickets", async function() {
-      await (await lottery.connect(buyer).buyTickets(10)).wait();
-      await (await lottery.connect(buyer_second).buyTickets(5)).wait();
-      await ethers.provider.send("evm_increaseTime", [1 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine", []);
-      const end = await lottery.connect(owner).endLottery();
-      await expect(end).to.emit(lottery, "EndLottery");
-      await end.wait();
-
-      const ticketsReturnAmount = await lottery.walletToAmountReturn(buyer.address);
-      expect(ticketsReturnAmount).to.be.not.eq(0);
-
-      const payoutAmount = await lottery.connect(buyer).payoutTickets();
-      await expect(payoutAmount).to.emit(usdt, "Transfer").withArgs(lottery.address, buyer.address, "550000000000000000"); // 10 tickets * price + commission
-    });
     it("end Lottery where not ended", async function() {
       const end = lottery.connect(owner).endLottery();
       await expect(end).to.be.revertedWith("not ended");
