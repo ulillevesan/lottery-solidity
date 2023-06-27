@@ -57,9 +57,9 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		address _operator,
 		address _vrfConsumer
 	) VRFConsumerBaseV2(_vrfConsumer) ConfirmedOwner(msg.sender) {
-		require(_usdt != address(0), "zero address");
-		require(_operator != address(0), "zero address");
-		require(_vrfConsumer != address(0), "zero address");
+		require(_usdt != address(0),"zero address");
+		require(_operator != address(0),"zero address");
+		require(_vrfConsumer != address(0),"zero address");
 		COORDINATOR = VRFCoordinatorV2Interface(_vrfConsumer);
 		s_subscriptionId = _subscriptionId;
 		currentId = 1;
@@ -73,28 +73,27 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 		operator = _operator;
 		percentageCommission = 10;
 	}
-
+	
 	function setOperator(address _operator) external onlyOwner {
-		require(_operator != address(0), "zero address");
-		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		require(_operator != address(0),"zero address");
+		require(tickets.length == 0, "lottery is running");
 		operator = _operator;
 		emit NewOperator(_operator);
 	}
 
 	function setCoin(address _coin) external onlyOwner {
-		require(_coin != address(0), "zero address");
-		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		require(_coin != address(0),"zero address");
+		require(tickets.length == 0, "lottery is running");
 		usdt = _coin;
 		emit NewCoin(_coin);
 	}
 
 	function setTreasury(address _treasury) external onlyOwner {
-		require(_treasury != address(0), "zero address");
-		require(tickets.length == 0 || endDate >= block.timestamp, "lottery is running");
+		require(_treasury != address(0),"zero address");
+		require(tickets.length == 0, "lottery is running");
 		treasury = _treasury;
 		emit NewTreasury(_treasury);
 	}
-
 	function buyTickets(uint256 _amount) external {
 		require(currentTickets + _amount <= maxTickets, "max tickets");
 		require(IERC20(usdt).balanceOf(msg.sender) >= _amount * price, "not enough balance");
@@ -128,9 +127,9 @@ contract Lottery is VRFConsumerBaseV2, ConfirmedOwner {
 			);
 
 			s_requests[requestId] = RequestStatus({
-			randomWords : new uint256[](0),
-			exists : true,
-			fulfilled : false
+			randomWords: new uint256[](0),
+			exists: true,
+			fulfilled: false
 			});
 	}
 
